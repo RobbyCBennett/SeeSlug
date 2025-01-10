@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+
+command='/usr/bin/seeslug'
+command_args='--port 8081'
+command_user='seeslug:seeslug'
+description='See Slug: video web server'
+directory='/mnt/hdd/videos'
+supervisor='supervise-daemon'
+
+depend() {
+	need net
+	after firewall
+	use dns
+}

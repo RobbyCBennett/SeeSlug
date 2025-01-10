@@ -1,0 +1,8 @@
+[Unit]
+After=network.target
+Description='See Slug: video web server'
+
+[Service]
+ExecStart='start-stop-daemon --start --pidfile /run/seeslug.pid --background --chuid seeslug --group seeslug --make-pidfile --remove-pidfile --exec /usr/bin/seeslug -- --port 8081'
+ExecStop='start-stop-daemon --stop --pidfile /run/seeslug.pid'
+WorkingDirectory='/mnt/hdd/videos'

@@ -1,0 +1,11 @@
+{
+	"name": "See Slug",
+	"start_url": "/",
+	"display": "fullscreen",
+	"icons": [
+		{
+			"src": "/logo_circle.svg",
+			"sizes": "any"
+		}
+	]
+}
