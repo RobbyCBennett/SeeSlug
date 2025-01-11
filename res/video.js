@@ -231,14 +231,14 @@ function handle_video_pointer_move_on(event)
 	if (event.pointerType === 'touch')
 		return;
 
-	const MIN = 2;
-	if (Math.abs(event.movementX) < MIN && Math.abs(event.movementY) < MIN)
-		return;
-
 	if (document.body.classList.contains('hidden_controls')) {
-		hide_controls(false);
+		// Show the controls for significant mouse movements
+		const MIN = 4;
+		if (Math.abs(event.movementX) > MIN || Math.abs(event.movementY) > MIN)
+			hide_controls(false);
 	}
 	else {
+		// Restart the timer to hide the controls
 		stop_hiding_controls();
 		start_hiding_controls();
 	}
