@@ -118,3 +118,22 @@ Other:
 ### [Audio and Video in Chromium](https://www.chromium.org/audio-video)
 
 ### [Audio and Video in Firefox](https://support.mozilla.org/en-US/kb/html5-audio-and-video-firefox)
+
+### Recommended Settings in [HandBrake](https://github.com/HandBrake/HandBrake/releases):
+
+- Summary:
+  - Format: MP4, Web Optimized
+- Dimensions:
+  - Orientation and Cropping:
+    - Cropping: Automatic
+- Video:
+  - Video Encoder:
+    - AV1 (NVENC), AV1 (VNC), or AV1 (QuickSync) if your GPU supports it or...
+    - H.265 (NVENC), H.265 (VNC), or H.265 (QuickSync) if your web browser supports it or...
+    - H.264 (NVENC), H.264 (VNC), or H.264 (QuickSync) if your GPU supports it or...
+    - H.264 (x264)
+  - Encoder Preset: The slowest
+  - Quality: The highest
+- Audio:
+  - Codec: FLAC 16-bit
+  - Mixdown: The highest amount of channels (or anything but Mono)
