@@ -119,7 +119,7 @@ Other:
 
 ### [Audio and Video in Firefox](https://support.mozilla.org/en-US/kb/html5-audio-and-video-firefox)
 
-### Recommended Settings in [HandBrake](https://github.com/HandBrake/HandBrake/releases):
+### Recommended Settings in [HandBrake](https://github.com/HandBrake/HandBrake/releases)
 
 - Summary:
   - Format: MP4, Web Optimized
