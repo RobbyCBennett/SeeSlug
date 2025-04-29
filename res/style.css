@@ -243,39 +243,24 @@ video {
 .time span {
 	position: absolute;
 }
-#progress_track {
-	cursor: pointer;
-	flex: 1;
-	height: 0.5rem;
-	position: relative;
-	border-radius: 1rem;
-	background: var(--color_accent_dark);
-	margin: 0.25rem 0;
-}
 #progress {
-	width: 0;
-	min-width: 0.5rem;
-	height: 100%;
-	background: var(--color_accent);
-	transition: width linear 1s;
-	pointer-events: none;
-	border-radius: 1rem;
-	position: relative;
+	cursor: pointer;
+    flex: 1;
+    height: 0.5rem;
+    border-radius: 1rem;
+    background: var(--color_accent_dark);
+    margin: 0.25rem 0;
+    appearance: none;
 }
-#progress_track::after {
-	content: '';
-	position: absolute;
-	top: -0.25rem;
+#progress:focus {
+	outline: none;
+}
+::-webkit-slider-thumb {
+	appearance: none;
 	width: 1rem;
 	height: 1rem;
 	border-radius: 50%;
-	background: var(--color_accent_dark);
-	left: calc(var(--progress_hover_percent) - 0.5rem);
-	opacity: 0;
-	pointer-events: none;
-}
-#progress_track:hover::after {
-	opacity: 1;
+	background: var(--color_accent);
 }
 ::backdrop {
 	display: none;

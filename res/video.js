@@ -52,8 +52,6 @@ const exit_fullscreen_icon = document.getElementById('exit_fullscreen');
 /** @type {HTMLDivElement} */
 const progress = document.getElementById('progress');
 /** @type {HTMLDivElement} */
-const progress_track = document.getElementById('progress_track');
-/** @type {HTMLDivElement} */
 const times_and_progress = document.getElementById('times_and_progress');
 /** @type {HTMLSpanElement} */
 const current_time_span = document.getElementById('current_time');
@@ -151,16 +149,6 @@ function handle_play_pointer_up(event)
 
 
 /**
- * Remember the clicked down target
- * @param {PointerEvent} event
- */
-function handle_play_pointer_down(event)
-{
-	clicked_down_target = event.target;
-}
-
-
-/**
  * Show the seek dot and time when the mouse hovers
  * @param {MouseEvent} event
  */
@@ -169,14 +157,14 @@ function handle_seek_hover(event)
 	const style = document.documentElement.style;
 	if (isNaN(video.duration)) {
 		style.setProperty('--progress_hover_percent', '0%');
-		progress_track.title = 'Seek';
+		progress.title = 'Seek';
 		return;
 	}
 	const normalized_x = event.offsetX / event.target.clientWidth;
 	style.setProperty('--progress_hover_percent', `${normalized_x * 100}%`);
 	const seconds = video.duration * normalized_x;
 	const time = to_time(Math.floor(seconds), true);
-	progress_track.title = `Seek to ${time}`;
+	progress.title = `Seek to ${time}`;
 }
 
 
@@ -267,6 +255,16 @@ function hide_controls(hide=true)
 
 
 /**
+ * Remember the clicked down target
+ * @param {PointerEvent} event
+ */
+function remember_target(event)
+{
+	clicked_down_target = event.target;
+}
+
+
+/**
  * Seek the video a small amount on keypress
  * @param {boolean} forward
  */
@@ -277,12 +275,12 @@ function seek_small(forward)
 
 
 /**
- * Seek the video to the clicked point
- * @param {PointerEvent} event
+ * Seek the video to the new slider value
  */
-function seek_specific(event)
+function seek_specific()
 {
-	video.currentTime = video.duration * event.offsetX / event.target.clientWidth;
+	clicked_down_target = null;
+	video.currentTime = video.duration * parseInt(progress.value) / parseInt(progress.max);
 }
 
 
@@ -470,12 +468,14 @@ function update_fullscreen_button()
 /** Move the video progress bar */
 function update_progress()
 {
+	if (clicked_down_target === progress)
+		return;
 	const current_seconds = Math.floor(video.currentTime);
 	const total_seconds = Math.floor(video.duration);
 	if (current_seconds === previous_seconds || isNaN(total_seconds))
 		return;
 	previous_seconds = current_seconds;
-	progress.style.width = `${video.currentTime / video.duration * 100}%`
+	progress.value = video.currentTime / video.duration * parseInt(progress.max);
 	const show_hours = total_seconds >= 3600;
 	current_time_span.innerText = to_time(current_seconds, show_hours);
 	total_time_span.innerText = to_time(total_seconds, show_hours);
@@ -498,7 +498,7 @@ function main()
 
 	video.controls = false;
 	video.onpointermove = handle_video_pointer_move_on;
-	video.onpointerdown = handle_play_pointer_down;
+	video.onpointerdown = remember_target;
 	video.onpointerup = handle_video_pointer_up;
 	video.onplay = update_play_pause_button;
 	video.onpause = update_play_pause_button;
@@ -507,9 +507,10 @@ function main()
 
 	controls.onpointerenter = stop_hiding_controls;
 
-	progress_track.onclick = seek_specific;
-	progress_track.onmousemove = handle_seek_hover;
-	play_pause_button.onpointerdown = handle_play_pointer_down;
+	progress.onchange = seek_specific;
+	progress.onmousemove = handle_seek_hover;
+	progress.onpointerdown = remember_target;
+	play_pause_button.onpointerdown = remember_target;
 	play_pause_button.onpointerup = handle_play_pointer_up;
 	captions_button.onclick = toggle_captions;
 	download_button.onclick = start_download;
