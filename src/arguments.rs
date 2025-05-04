@@ -15,6 +15,7 @@ pub enum Mode
 	Help,
 	Version,
 }
+use Mode::*;
 
 
 /// Configuration for this application from JSON
@@ -39,11 +40,12 @@ impl Mode
 			Folder,
 			Port,
 		}
+		use State::*;
 
 		const FOLDER: &str = "--folder";
 		const PORT: &str = "--port";
 
-		let mut state = State::Begin;
+		let mut state = Begin;
 
 		let mut folder = String::new();
 		let mut port = DEFAULT_PORT;
@@ -52,40 +54,40 @@ impl Mode
 
 		for arg in std::env::args().skip(1) {
 			match (state, arg.as_str()) {
-				(_, "-h" | "--help") => return Mode::Help,
-				(_, "-v" | "--version") => return Mode::Version,
-				(State::Begin, FOLDER) => {
-					state = State::Folder;
+				(_, "-h" | "--help") => return Help,
+				(_, "-v" | "--version") => return Version,
+				(Begin, FOLDER) => {
+					state = Folder;
 					arg_copy = FOLDER;
 				},
-				(State::Begin, PORT) => {
-					state = State::Port;
+				(Begin, PORT) => {
+					state = Port;
 					arg_copy = PORT;
 				},
-				(State::Folder, _) => {
+				(Folder, _) => {
 					folder = arg;
-					state = State::Begin;
+					state = Begin;
 				},
-				(State::Port, _) => {
+				(Port, _) => {
 					port = match u16::from_str(&arg) {
 						Ok(port) => port,
-						Err(_) => return Mode::Error(format!("Expected a port number but got \"{arg}\"\n")),
+						Err(_) => return Error(format!("Expected a port number but got \"{arg}\"\n")),
 					};
-					state = State::Begin;
+					state = Begin;
 				},
-				_ => return Mode::Error(format!("Expected a valid argument but got \"{arg}\"\n")),
+				_ => return Error(format!("Expected a valid argument but got \"{arg}\"\n")),
 			}
 		}
 
-		if !matches!(state, State::Begin) {
-			return Mode::Error(format!("Expected an argument after \"{arg_copy}\"\n"))
+		if !matches!(state, Begin) {
+			return Error(format!("Expected an argument after \"{arg_copy}\"\n"))
 		}
 
 		if folder.is_empty() {
 			folder = String::from(DEFAULT_FOLDER);
 		}
 
-		return Mode::Normal(Config {
+		return Normal(Config {
 			folder,
 			port,
 		});

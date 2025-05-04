@@ -1,6 +1,7 @@
 use core::mem::MaybeUninit;
 use std::borrow::Cow;
 use std::fs::OpenOptions;
+use std::io::ErrorKind::InvalidInput;
 use std::io::IoSlice;
 use std::io::Read;
 use std::io::Seek;
@@ -12,6 +13,8 @@ use crate::link_info::*;
 use crate::name_parts::*;
 use crate::request::*;
 use crate::status::*;
+
+use Status::*;
 
 
 /// Maximum size in bytes of an incoming HTTP request
@@ -39,7 +42,7 @@ pub fn handle_request(root_folder: &str, mut stream: TcpStream)
 
 	// Parse the Request and respond
 	match Request::parse(&request) {
-		None => respond_status(stream, Status::BadRequest),
+		None => respond_status(stream, BadRequest),
 		Some(request) => respond_file(root_folder, stream, request),
 	}
 }
@@ -89,7 +92,7 @@ fn respond_file(root_folder: &str, stream: &mut TcpStream, request: Request)
 			include_str!("../res/videos.js").as_bytes()),
 		client_path => {
 			if has_parent_dir(client_path) {
-				return respond_status(stream, Status::NotFound);
+				return respond_status(stream, NotFound);
 			}
 
 			let full_path = format!("{root_folder}{client_path}");
@@ -124,17 +127,17 @@ fn respond_file(root_folder: &str, stream: &mut TcpStream, request: Request)
 							// Get the file or fail
 							let mut file = match OpenOptions::new().read(true).open(&full_path) {
 								Ok(file) => file,
-								Err(_) => return respond_status(stream, Status::NotFound),
+								Err(_) => return respond_status(stream, NotFound),
 							};
 
 							// Get the file size or fail
 							let total_size = match file.metadata() {
 								Ok(metadata) => metadata.len(),
-								Err(_) => return respond_status(stream, Status::InternalServerError),
+								Err(_) => return respond_status(stream, InternalServerError),
 							};
 							let total_size = match total_size.try_into() {
 								Ok(total_size) => total_size,
-								Err(_) => return respond_status(stream, Status::InternalServerError),
+								Err(_) => return respond_status(stream, InternalServerError),
 							};
 
 							// Determine whether to download or stream
@@ -148,7 +151,7 @@ fn respond_file(root_folder: &str, stream: &mut TcpStream, request: Request)
 										_ => VIDEO_BUFFER_SIZE,
 									};
 									if buffer.try_reserve(buffer_size).is_err() {
-										return respond_status(stream, Status::InternalServerError);
+										return respond_status(stream, InternalServerError);
 									}
 
 									// Start the response
@@ -165,7 +168,7 @@ fn respond_file(root_folder: &str, stream: &mut TcpStream, request: Request)
 										unsafe { buffer.set_len(buffer_size) }
 										match file.read(&mut buffer) {
 											Ok(size) => unsafe { buffer.set_len(size) },
-											Err(_) => return respond_status(stream, Status::InternalServerError),
+											Err(_) => return respond_status(stream, InternalServerError),
 										}
 
 										// Continue the response
@@ -180,28 +183,38 @@ fn respond_file(root_folder: &str, stream: &mut TcpStream, request: Request)
 									if begin > 0 {
 										let seek = match begin.try_into() {
 											Ok(seek) => seek,
-											Err(_) => return respond_status(stream, Status::InternalServerError),
+											Err(_) => return respond_status(stream, InternalServerError),
 										};
-										if file.seek_relative(seek).is_err() {
-											return respond_status(stream, Status::InternalServerError);
+										if begin > total_size {
+											return respond_status(stream, RangeNotSatisfiable);
+										}
+										match file.seek_relative(seek) {
+											Ok(()) => (),
+											Err(error) => {
+												let status_code = match error.kind() {
+													InvalidInput => RangeNotSatisfiable,
+													_ => InternalServerError,
+												};
+												return respond_status(stream, status_code);
+											},
 										}
 									}
 
 									// Allocate space or fail
 									let mut buffer = Vec::new();
 									let buffer_size = match total_size - begin {
-										0..=VIDEO_BUFFER_SIZE => total_size,
+										buffer_size @ 0..=VIDEO_BUFFER_SIZE => buffer_size,
 										_ => VIDEO_BUFFER_SIZE,
 									};
 									if buffer.try_reserve(buffer_size).is_err() {
-										return respond_status(stream, Status::InternalServerError);
+										return respond_status(stream, InternalServerError);
 									}
 
 									// Read the bytes or fail
 									unsafe { buffer.set_len(buffer_size) }
 									match file.read(&mut buffer) {
 										Ok(size) => unsafe { buffer.set_len(size) },
-										Err(_) => return respond_status(stream, Status::InternalServerError),
+										Err(_) => return respond_status(stream, InternalServerError),
 									}
 
 									// Respond as partial content
@@ -210,12 +223,12 @@ fn respond_file(root_folder: &str, stream: &mut TcpStream, request: Request)
 								},
 							};
 						},
-						_ => return respond_status(stream, Status::NotFound),
+						_ => return respond_status(stream, NotFound),
 					};
 
 					buffer = match std::fs::read(&full_path) {
 						Ok(buffer) => buffer,
-						Err(_) => return respond_status(stream, Status::NotFound),
+						Err(_) => return respond_status(stream, NotFound),
 					};
 
 					(content_type, buffer.as_slice())
@@ -224,7 +237,7 @@ fn respond_file(root_folder: &str, stream: &mut TcpStream, request: Request)
 		},
 	};
 
-	respond_status_and_content(stream, Status::Okay, content_type, content);
+	respond_status_and_content(stream, Okay, content_type, content);
 }
 
 
@@ -281,28 +294,29 @@ fn has_parent_dir(path: &str) -> bool
 		DotTwo,
 		Other,
 	}
+	use State::*;
 
 	let mut state = State::Begin;
 
 	for c in path.chars() {
 		state = match (state, c) {
-			(State::Begin, '.') => State::DotOne,
-			(State::Begin, '/' | '\\') => State::Begin,
-			(State::Begin, _) => State::Other,
+			(Begin, '.') => DotOne,
+			(Begin, '/' | '\\') => Begin,
+			(Begin, _) => Other,
 
-			(State::DotOne, '.') => State::DotTwo,
-			(State::DotOne, '/' | '\\') => State::Begin,
-			(State::DotOne, _) => State::Other,
+			(DotOne, '.') => DotTwo,
+			(DotOne, '/' | '\\') => Begin,
+			(DotOne, _) => Other,
 
-			(State::DotTwo, '/' | '\\') => return true,
-			(State::DotTwo, _) => State::Other,
+			(DotTwo, '/' | '\\') => return true,
+			(DotTwo, _) => Other,
 
-			(State::Other, '/' | '\\') => State::Begin,
-			(State::Other, _) => State::Other,
+			(Other, '/' | '\\') => Begin,
+			(Other, _) => Other,
 		};
 	}
 
-	return matches!(state, State::DotTwo);
+	return matches!(state, DotTwo);
 }
 
 

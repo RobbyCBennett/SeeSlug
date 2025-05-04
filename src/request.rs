@@ -26,6 +26,7 @@ enum UrlPartKind
 	Key,
 	Value,
 }
+use UrlPartKind::*;
 
 
 impl Request
@@ -43,7 +44,7 @@ impl Request
 		let mut i = GET.len();
 
 		// Parse the URL
-		let mut part_kind = UrlPartKind::Path;
+		let mut part_kind = Path;
 		let mut part_start: usize = i;
 		let mut part = Vec::<u8>::new();
 		while i < request.len() {
@@ -88,16 +89,16 @@ impl Request
 					part.extend(&request[part_start..i]);
 					result.insert_part(part_kind, &part);
 					part.clear();
-					part_kind = UrlPartKind::Key;
+					part_kind = Key;
 					part_start = i + 1;
 				}
 				// Value of query component delimiter
 				b'=' => {
-					if !matches!(part_kind, UrlPartKind::Path) {
+					if !matches!(part_kind, Path) {
 						part.extend(&request[part_start..i]);
 						result.insert_part(part_kind, &part);
 						part.clear();
-						part_kind = UrlPartKind::Value;
+						part_kind = Value;
 						part_start = i + 1;
 					}
 				}
@@ -174,16 +175,16 @@ impl Request
 		match core::str::from_utf8(part) {
 			Ok(part) => {
 				match kind {
-					UrlPartKind::Path => {
+					Path => {
 						self.path = part.to_string();
 					},
-					UrlPartKind::Key => {
+					Key => {
 						self.query.push(QueryParam {
 							key: part.to_string(),
 							value: String::new(),
 						});
 					},
-					UrlPartKind::Value => {
+					Value => {
 						if let Some(last) = self.query.last_mut() {
 							last.value = part.to_string();
 						}

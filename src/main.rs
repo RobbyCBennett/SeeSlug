@@ -27,6 +27,7 @@ enum ExitCode
 	BadArgs,
 	FailedToListen,
 }
+use ExitCode::*;
 
 
 /// Run a multi-threaded video server
@@ -39,7 +40,7 @@ fn main()
 	let config = match Mode::new() {
 		Mode::Error(error) => {
 			eprint(&error);
-			std::process::exit(ExitCode::BadArgs as i32);
+			std::process::exit(BadArgs as i32);
 		},
 		Mode::Normal(config) => config,
 		Mode::Help => return print_help(),
@@ -51,7 +52,7 @@ fn main()
 		Ok(listener) => listener,
 		Err(error) => {
 			eprint(&format!("Failed to start listening to {} ({error})\n", config.port));
-			std::process::exit(ExitCode::FailedToListen as i32);
+			std::process::exit(FailedToListen as i32);
 		}
 	};
 	fix_listener(&mut listener);
@@ -90,7 +91,7 @@ fn fix_listener(listener: &mut TcpListener)
 
 		if unsafe { libc::setsockopt(socket, OPTION_LEVEL, OPTION_NAME, option_value, size_of::<c_int>() as c_int) } != 0 {
 			eprint("Failed to configure the server socket\n");
-			std::process::exit(ExitCode::FailedToListen as i32);
+			std::process::exit(FailedToListen as i32);
 		}
 	}
 }
@@ -126,5 +127,5 @@ fn print_version()
 /// Immediately exit
 extern "C" fn handle_interrupt(_signal: c_int)
 {
-	std::process::exit(ExitCode::Success as i32);
+	std::process::exit(Success as i32);
 }
