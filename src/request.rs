@@ -6,7 +6,7 @@ pub struct Request
 	/// Query parameters
 	pub query: Vec<QueryParam>,
 	/// Start position in a header like `Range: bytes=3702784-`
-	pub range_start: usize,
+	pub range_start: Option<usize>,
 }
 
 
@@ -77,10 +77,10 @@ impl Request
 									part_start = i;
 									continue;
 								},
-								Err(_error) => return None,
+								Err(_) => return None,
 							}
 						},
-						Err(_error) => return None,
+						Err(_) => return None,
 					}
 				}
 				// Key of query component delimiter
@@ -160,7 +160,7 @@ impl Request
 			_ => return Some(result),
 		};
 		result.range_start = match usize::from_str_radix(number_str, 10) {
-			Ok(number) => number,
+			Ok(number) => Some(number),
 			_ => return Some(result),
 		};
 
@@ -190,7 +190,7 @@ impl Request
 					},
 				}
 			},
-			Err(_error) => {},
+			Err(_) => (),
 		};
 	}
 
@@ -201,7 +201,7 @@ impl Request
 		return Request {
 			path: String::new(),
 			query: vec![],
-			range_start: 0,
+			range_start: None,
 		};
 	}
 }

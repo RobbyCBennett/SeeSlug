@@ -59,7 +59,7 @@ impl ThreadPool
 	{
 		match self.sender.as_ref() {
 			Some(reference) => { let _ = reference.send(Box::new(function)); },
-			None => {},
+			None => (),
 		}
 	}
 }

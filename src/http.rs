@@ -1,5 +1,6 @@
 use core::mem::MaybeUninit;
 use std::borrow::Cow;
+use std::fs::OpenOptions;
 use std::io::IoSlice;
 use std::io::Read;
 use std::io::Seek;
@@ -121,47 +122,93 @@ fn respond_file(root_folder: &str, stream: &mut TcpStream, request: Request)
 						".vtt" => CONTENT_TYPE_VTT,
 						".mp4" => {
 							// Get the file or fail
-							let mut file = match std::fs::File::open(&full_path) {
+							let mut file = match OpenOptions::new().read(true).open(&full_path) {
 								Ok(file) => file,
 								Err(_) => return respond_status(stream, Status::NotFound),
 							};
 
-							// Seek or fail
-							let seek = match request.range_start.try_into() {
-								Ok(seek) => seek,
-								Err(_) => return respond_status(stream, Status::InternalServerError),
-							};
-							match file.seek_relative(seek) {
-								Ok(()) => (),
-								Err(_) => return respond_status(stream, Status::InternalServerError),
-							}
-
-							// Get the size or fail
+							// Get the file size or fail
 							let total_size = match file.metadata() {
 								Ok(metadata) => metadata.len(),
 								Err(_) => return respond_status(stream, Status::InternalServerError),
 							};
-
-							// Allocate space or fail
-							let mut buffer = Vec::new();
-							match buffer.try_reserve(VIDEO_BUFFER_SIZE) {
-								Ok(()) => (),
+							let total_size = match total_size.try_into() {
+								Ok(total_size) => total_size,
 								Err(_) => return respond_status(stream, Status::InternalServerError),
-							}
+							};
 
-							// Read the bytes or fail
-							unsafe { buffer.set_len(VIDEO_BUFFER_SIZE) }
-							match file.read(&mut buffer) {
-								Ok(0) => return respond_status(stream, Status::InternalServerError),
-								Ok(size) => unsafe { buffer.set_len(size) },
-								Err(_) => return respond_status(stream, Status::InternalServerError),
-							}
+							// Determine whether to download or stream
+							return match request.range_start {
+								// Download
+								None => {
+									// Allocate space or fail
+									let mut buffer = Vec::new();
+									let buffer_size = match total_size {
+										0..=VIDEO_BUFFER_SIZE => total_size,
+										_ => VIDEO_BUFFER_SIZE,
+									};
+									if buffer.try_reserve(buffer_size).is_err() {
+										return respond_status(stream, Status::InternalServerError);
+									}
 
-							// Respond as partial content
-							// (needed to support seeking and big files)
-							let begin = request.range_start;
-							let end = begin + buffer.len() - 1;
-							return respond_partial_content(stream, CONTENT_TYPE_MP4, &buffer, begin, end, total_size);
+									// Start the response
+									if stream.write_vectored(&[
+										IoSlice::new(b"HTTP/1.1 200 Ok\r\nContent-Length: "),
+										IoSlice::new(total_size.to_string().as_bytes()),
+										IoSlice::new(b"\r\nContent-Type: video/mp4\r\n\r\n"),
+									]).is_err() {
+										return;
+									}
+
+									loop {
+										// Read the bytes or fail
+										unsafe { buffer.set_len(buffer_size) }
+										match file.read(&mut buffer) {
+											Ok(size) => unsafe { buffer.set_len(size) },
+											Err(_) => return respond_status(stream, Status::InternalServerError),
+										}
+
+										// Continue the response
+										if stream.write_all(&buffer).is_err() {
+											return;
+										}
+									}
+								},
+								// Stream
+								Some(begin) => {
+									// Seek or fail
+									if begin > 0 {
+										let seek = match begin.try_into() {
+											Ok(seek) => seek,
+											Err(_) => return respond_status(stream, Status::InternalServerError),
+										};
+										if file.seek_relative(seek).is_err() {
+											return respond_status(stream, Status::InternalServerError);
+										}
+									}
+
+									// Allocate space or fail
+									let mut buffer = Vec::new();
+									let buffer_size = match total_size - begin {
+										0..=VIDEO_BUFFER_SIZE => total_size,
+										_ => VIDEO_BUFFER_SIZE,
+									};
+									if buffer.try_reserve(buffer_size).is_err() {
+										return respond_status(stream, Status::InternalServerError);
+									}
+
+									// Read the bytes or fail
+									unsafe { buffer.set_len(buffer_size) }
+									match file.read(&mut buffer) {
+										Ok(size) => unsafe { buffer.set_len(size) },
+										Err(_) => return respond_status(stream, Status::InternalServerError),
+									}
+
+									// Respond as partial content
+									let end = begin + buffer.len() - 1;
+									respond_partial_content(stream, CONTENT_TYPE_MP4, &buffer, begin, end, total_size);
+								},
+							};
 						},
 						_ => return respond_status(stream, Status::NotFound),
 					};
@@ -205,7 +252,7 @@ fn respond_status_and_content(stream: &mut TcpStream, status: Status, content_ty
 
 
 /// Write a response given some non-video content
-fn respond_partial_content(stream: &mut TcpStream, content_type: &str, content: &[u8], begin: usize, end: usize, total_size: u64)
+fn respond_partial_content(stream: &mut TcpStream, content_type: &str, content: &[u8], begin: usize, end: usize, total_size: usize)
 {
 	let _ = stream.write_vectored(&[
 		IoSlice::new(b"HTTP/1.1 206 Partial Content\r\nContent-Length: "),

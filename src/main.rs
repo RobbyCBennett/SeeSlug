@@ -64,7 +64,7 @@ fn main()
 	for stream in listener.incoming() {
 		match stream {
 			Ok(stream) => pool.execute(|| handle_request(root_folder, stream)),
-			Err(_error) => {},
+			Err(_) => (),
 		}
 	}
 }
