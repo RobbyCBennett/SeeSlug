@@ -170,6 +170,21 @@ video {
 	font-family: 'Alata';
 	opacity: 0.8;
 }
+#tooltip, #buttons button, #times_and_progress, dialog {
+	backdrop-filter: blur(0.5rem);
+}
+#tooltip {
+	background: var(--color_translucent_accent_dark);
+	font-size: 0.75rem;
+	padding: 0.5em 1em;
+	pointer-events: none;
+	position: absolute;
+	transform: translate(-50%, calc(-100% - 0.5rem));
+	width: max-content;
+}
+#tooltip.range {
+	transform: translate(-50%, calc(-100% - 1.875rem));
+}
 #controls {
 	position: absolute;
 	bottom: 0;
@@ -188,7 +203,6 @@ video {
 }
 #buttons button, #times_and_progress, dialog {
 	background: var(--color_translucent);
-	backdrop-filter: blur(0.5rem);
 }
 #buttons {
 	display: flex;

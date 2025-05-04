@@ -9,7 +9,9 @@ const SEEK_BACKWARD_KEY      = 'ArrowLeft';
 const SEEK_FORWARD_KEY       = 'ArrowRight';
 
 /** Time to idle until hiding the controls */
-const IDLE_TIME_MS = 2000;
+const IDLE_WAIT_MS = 2000;
+/** Time to wait until showing a tooltip */
+const TOOLTIP_WAIT_MS = 1000;
 
 /** Seconds to seek with arrow keys */
 const ARROW_SEEK_SECONDS = 5;
@@ -50,9 +52,9 @@ const enter_fullscreen_icon = document.getElementById('enter_fullscreen');
 const exit_fullscreen_icon = document.getElementById('exit_fullscreen');
 
 /** @type {HTMLDivElement} */
-const progress = document.getElementById('progress');
-/** @type {HTMLDivElement} */
 const times_and_progress = document.getElementById('times_and_progress');
+/** @type {HTMLInputElement} */
+const progress = document.getElementById('progress');
 /** @type {HTMLSpanElement} */
 const current_time_span = document.getElementById('current_time');
 /** @type {HTMLSpanElement} */
@@ -69,6 +71,8 @@ let previous_seconds = -1;
 
 /** Idle timeout ID */
 let idle_timer = 0;
+/** Tooltip timeout ID */
+let tooltip_timer = 0;
 
 /**
  * Where the stylus/finger pushed down, to compare with lifting it up
@@ -154,17 +158,14 @@ function handle_play_pointer_up(event)
  */
 function handle_seek_hover(event)
 {
-	const style = document.documentElement.style;
 	if (isNaN(video.duration)) {
-		style.setProperty('--progress_hover_percent', '0%');
-		progress.title = 'Seek';
+		set_tooltip(progress, 'Seek');
 		return;
 	}
 	const normalized_x = event.offsetX / event.target.clientWidth;
-	style.setProperty('--progress_hover_percent', `${normalized_x * 100}%`);
 	const seconds = video.duration * normalized_x;
 	const time = to_time(Math.floor(seconds), true);
-	progress.title = `Seek to ${time}`;
+	set_tooltip(progress, `Seek to ${time}`);
 }
 
 
@@ -261,6 +262,16 @@ function hide_controls(hide=true)
 }
 
 
+/** Stop showing the custom tooltip text */
+function hide_tooltip()
+{
+	clearTimeout(tooltip_timer);
+	const tooltip = document.getElementById('tooltip');
+	if (tooltip)
+		tooltip.classList.add('hidden');
+}
+
+
 /**
  * Remember the clicked down target
  * @param {PointerEvent} event
@@ -291,6 +302,73 @@ function seek_specific()
 }
 
 
+/**
+ * Set the tooltip text (pretty title attribute alternative)
+ * @param {HTMLElement} element
+ * @param {string} text
+ */
+function set_tooltip(element, text)
+{
+	element.ariaLabel = text;
+	element.onpointerenter = show_tooltip;
+	element.onpointerleave = hide_tooltip;
+	if (element.type === 'range')
+		element.onpointermove = show_tooltip;
+}
+
+
+/**
+ * Start showing the custom tooltip text
+ * @param {PointerEvent} event
+ */
+function show_tooltip(event)
+{
+	if (!(event.target instanceof Element))
+		return;
+
+	// Get or make it
+	let tooltip = document.getElementById('tooltip');
+	if (!tooltip) {
+		tooltip = document.createElement('div');
+		tooltip.id = 'tooltip';
+		tooltip.className = 'hidden';
+		document.body.appendChild(tooltip);
+	}
+
+	const is_range = event.target.type === 'range';
+
+	// Set the text and calculate the tooltip position
+	const rect = event.target.getBoundingClientRect();
+	let x = 0;
+	if (is_range) {
+		x = event.clientX;
+		tooltip.classList.add('range');
+	}
+	else {
+		x = (rect.left + rect.right) / 2;
+		tooltip.classList.remove('range');
+	}
+	tooltip.innerText = event.target.ariaLabel;
+	tooltip.style.left = `${x}px`;
+	tooltip.style.top = `${rect.top}px`;
+
+	// Show the tooltip
+	if (!is_range) {
+		tooltip_timer = setTimeout(show_tooltip_delayed, TOOLTIP_WAIT_MS);
+		return;
+	}
+	tooltip.classList.remove('hidden');
+}
+
+
+function show_tooltip_delayed()
+{
+	const tooltip = document.getElementById('tooltip');
+	if (tooltip)
+		tooltip.classList.remove('hidden');
+}
+
+
 /** Start downloading the video and any subtitles */
 function start_download()
 {
@@ -311,7 +389,7 @@ function start_download()
 /** Restart the countdown that hides the controls */
 function start_hiding_controls()
 {
-	idle_timer = setTimeout(hide_controls, IDLE_TIME_MS);
+	idle_timer = setTimeout(hide_controls, IDLE_WAIT_MS);
 }
 
 
@@ -426,13 +504,13 @@ function update_captions_button()
 		captions_button.classList.add('hidden');
 	}
 	else if (language) {
-		captions_button.title = `${language} Captions - C`;
+		set_tooltip(captions_button, `${language} Captions - C`);
 		captions_off_icon.classList.add('hidden');
 		captions_on_icon.classList.remove('hidden');
 		captions_button.classList.remove('hidden');
 	}
 	else {
-		captions_button.title = 'Captions Off - C';
+		set_tooltip(captions_button, 'Captions Off - C');
 		captions_on_icon.classList.add('hidden');
 		captions_off_icon.classList.remove('hidden');
 		captions_button.classList.remove('hidden');
@@ -444,12 +522,12 @@ function update_captions_button()
 function update_play_pause_button()
 {
 	if (video.paused) {
-		play_pause_button.title = 'Play - Space';
+		set_tooltip(play_pause_button, 'Play - Space');
 		pause_icon.classList.add('hidden');
 		play_icon.classList.remove('hidden');
 	}
 	else {
-		play_pause_button.title = 'Pause - Space';
+		set_tooltip(play_pause_button, 'Pause - Space');
 		play_icon.classList.add('hidden');
 		pause_icon.classList.remove('hidden');
 	}
@@ -460,12 +538,12 @@ function update_play_pause_button()
 function update_fullscreen_button()
 {
 	if (document.fullscreenElement) {
-		fullscreen_button.title = 'Exit Fullscreen - F or Esc';
+		set_tooltip(fullscreen_button, 'Exit Fullscreen - F or Esc');
 		enter_fullscreen_icon.classList.add('hidden');
 		exit_fullscreen_icon.classList.remove('hidden');
 	}
 	else {
-		fullscreen_button.title = 'Fullscreen - F';
+		set_tooltip(fullscreen_button, 'Fullscreen - F');
 		exit_fullscreen_icon.classList.add('hidden');
 		enter_fullscreen_icon.classList.remove('hidden');
 	}
@@ -534,6 +612,11 @@ function main()
 	update_captions_button();
 	update_progress();
 	start_hiding_controls();
+
+	for (const element of document.querySelectorAll('[title]')) {
+		set_tooltip(element, element.title);
+		element.removeAttribute('title');
+	}
 }
 
 
