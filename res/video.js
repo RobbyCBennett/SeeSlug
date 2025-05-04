@@ -168,12 +168,19 @@ function handle_seek_hover(event)
 }
 
 
-/** Show a popup if the video fails */
-function handle_video_error()
+/**
+ * Show a popup if the video fails
+ * @param {string | Event} event
+ */
+function handle_video_error(event)
 {
 	dialog_message.innerText = 'Failed to play the video';
 	dialog.close();
 	dialog.showModal();
+	if (typeof event === 'string')
+		console.error(event);
+	else if (video.error)
+		console.error(video.error.message);
 }
 
 
