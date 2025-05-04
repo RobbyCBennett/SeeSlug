@@ -87,16 +87,16 @@ impl Thread
 	fn new(receiver: Arc<Mutex<Receiver<Job>>>) -> Thread
 	{
 		let thread = std::thread::spawn(move || loop {
-			// Lock the receiver
-			let lock_result = match receiver.lock() {
-				Err(_error) => break,
-				Ok(lock_result) => lock_result,
-			};
-
-			// Wait for a job value on this receiver
-			let job = match lock_result.recv() {
-				Err(_error) => break,
-				Ok(receive_result) => receive_result,
+			// Lock the receiver until the first job is taken
+			let job = {
+				let lock_result = match receiver.lock() {
+					Ok(lock_result) => lock_result,
+					Err(_) => break,
+				};
+				match lock_result.recv() {
+					Ok(receive_result) => receive_result,
+					Err(_) => break,
+				}
 			};
 
 			// Execute the job
