@@ -51,7 +51,7 @@ fn main()
 	let mut listener = match TcpListener::bind((Ipv4Addr::UNSPECIFIED, config.port)) {
 		Ok(listener) => listener,
 		Err(error) => {
-			eprint(&format!("Failed to start listening to {} ({error})\n", config.port));
+			eprint(&format!("Failed to start listening to port {} - {error}\nHint: try another number with the --port argument\n", config.port));
 			std::process::exit(FailedToListen as i32);
 		}
 	};
@@ -90,8 +90,7 @@ fn fix_listener(listener: &mut TcpListener)
 		let option_value = unsafe { transmute(&mut option_value) };
 
 		if unsafe { libc::setsockopt(socket, OPTION_LEVEL, OPTION_NAME, option_value, size_of::<c_int>() as c_int) } != 0 {
-			eprint("Failed to configure the server socket\n");
-			std::process::exit(FailedToListen as i32);
+			eprint("Warning: Failed to configure the port to prevent Windows from resetting connections\n");
 		}
 	}
 }
