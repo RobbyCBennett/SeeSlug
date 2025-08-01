@@ -33,8 +33,14 @@ use ExitCode::*;
 /// Run a multi-threaded video server
 fn main()
 {
+	const SIGINT: core::ffi::c_int = 2;
+	unsafe extern "C"
+	{
+		fn signal(signum: core::ffi::c_int, handler: usize) -> usize;
+	}
+
 	// Handle signals without displaying error messages
-	unsafe { libc::signal(libc::SIGINT, handle_interrupt as libc::sighandler_t); }
+	unsafe { signal(SIGINT, handle_interrupt as usize); }
 
 	// Get the normal program mode from the arguments or exit early
 	let config = match Mode::new() {
@@ -55,6 +61,7 @@ fn main()
 			std::process::exit(FailedToListen as i32);
 		}
 	};
+	#[cfg(target_os = "windows")]
 	fix_listener(&mut listener);
 
 	// Treat the data created in main as static
@@ -73,25 +80,33 @@ fn main()
 
 /// Prevent the Windows firewall from resetting incoming connections
 /// (solution found by randomly changing different socket options)
+#[cfg(target_os = "windows")]
 fn fix_listener(listener: &mut TcpListener)
 {
-	#[cfg(target_os = "windows")] {
-		use std::os::windows::io::AsRawSocket;
-		let socket = listener.as_raw_socket() as libc::SOCKET;
+	use core::ffi::c_char;
+	use std::os::windows::io::AsRawSocket;
+	use std::os::windows::raw::SOCKET;
 
-		/// Socket level (`SOL_SOCKET`)
-		/// https://learn.microsoft.com/en-us/windows/win32/winsock/sol-socket-socket-options
-		const OPTION_LEVEL: c_int = 0xffff;
-		/// Socket: send buffer size (`SO_SNDBUF`)
-		const OPTION_NAME: c_int = 0x1001;
+	unsafe extern "C"
+	{
+		// https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-setsockopt
+		fn setsockopt(s: SOCKET, level: c_int, optname: c_int, optval: *const c_char, optlen: c_int) -> c_int;
+	}
 
-		// A buffer size of zero somehow fixes the issue
-		let mut option_value: c_int = 0;
-		let option_value = unsafe { transmute(&mut option_value) };
+	let socket = listener.as_raw_socket() as SOCKET;
 
-		if unsafe { libc::setsockopt(socket, OPTION_LEVEL, OPTION_NAME, option_value, size_of::<c_int>() as c_int) } != 0 {
-			eprint("Warning: Failed to configure the port to prevent Windows from resetting connections\n");
-		}
+	/// Socket level (`SOL_SOCKET`)
+	/// https://learn.microsoft.com/en-us/windows/win32/winsock/sol-socket-socket-options
+	const OPTION_LEVEL: c_int = 0xffff;
+	/// Socket: send buffer size (`SO_SNDBUF`)
+	const OPTION_NAME: c_int = 0x1001;
+
+	// A buffer size of zero somehow fixes the issue
+	let mut option_value: c_int = 0;
+	let option_value = unsafe { transmute(&mut option_value) };
+
+	if unsafe { setsockopt(socket, OPTION_LEVEL, OPTION_NAME, option_value, size_of::<c_int>() as c_int) } != 0 {
+		eprint("Warning: Failed to configure the port to prevent Windows from resetting connections\n");
 	}
 }
 

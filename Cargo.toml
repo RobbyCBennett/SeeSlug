@@ -1,12 +1,9 @@
 [package]
 name = 'seeslug'
 version = '1.0.4'
-edition = '2021'
+edition = '2024'
 
 [profile.release]
 strip = true
 lto = true
 codegen-units = 1
-
-[dependencies]
-libc = '0.2'
